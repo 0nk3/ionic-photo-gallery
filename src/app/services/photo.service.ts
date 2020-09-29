@@ -7,8 +7,6 @@ import {
   CameraPhoto,
   CameraSource,
 } from "@capacitor/core";
-import { rejects } from "assert";
-import { resolve } from "dns";
 
 const { Camera, Filesystem, Storage } = Plugins;
 @Injectable({
@@ -16,6 +14,7 @@ const { Camera, Filesystem, Storage } = Plugins;
 })
 export class PhotoService {
   public photos: Photo[] = [];
+  private PHOTO_STORAGE = "photos";
   constructor() {}
 
   public async addNewToGallery(): Promise<void> {
@@ -26,6 +25,24 @@ export class PhotoService {
     });
     const savedImageFile = await this.savePicture(capturePhoto);
     this.photos.unshift(savedImageFile);
+    Storage.set({
+      key: this.PHOTO_STORAGE,
+      value: JSON.stringify(this.photos),
+    });
+  }
+  public async loadSaved(): Promise<void> {
+    const photoList = await Storage.get({ key: this.PHOTO_STORAGE });
+    this.photos = JSON.parse(photoList.value) || [];
+
+    for (const photo of this.photos) {
+      const readFile = await Filesystem.readFile({
+        path: photo.filepath,
+        directory: FilesystemDirectory.Data,
+      });
+
+      // Web platform only: Load the photo as base64 data
+      photo.webviewPath = `data:image/jpeg;base64,${readFile.data}`;
+    }
   }
   private async savePicture(cameraPhoto: CameraPhoto) {
     const base64Data = await this.readAsBase64(cameraPhoto);
